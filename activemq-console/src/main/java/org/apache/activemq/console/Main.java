@@ -65,15 +65,18 @@ public class Main {
         // Convert arguments to collection for easier management
         List<String> tokens = new LinkedList<String>(Arrays.asList(args));
         // Parse for extension directory option
+        // 解析[--extdir] : 参数作用是将目录下的jar包添加到classpath
         app.parseExtensions(tokens);
 
         // lets add the conf directory first, to find the log4j.properties just in case its not
         // in the activemq.classpath system property or some jar incorrectly includes one
+        // 首先添加conf目录到classpath，从中查找log4j.properties，防止其不在系统变量[activemq.classpath]指定的路径中，
+        // 或者与一些jar包里包含的同名文件冲突
         File confDir = app.getActiveMQConfig();
         app.addClassPath(confDir);
 
         // Add the following to the classpath:
-        //
+        // 添加一下路径到classpath
         // ${activemq.base}/conf
         // ${activemq.base}/lib/* (only if activemq.base != activemq.home)
         // ${activemq.home}/lib/*
@@ -191,7 +194,7 @@ public class Main {
                 count--;
                 File extDir = new File(tokens.remove(i));
 
-                if (!canUseExtdir()) {
+                if (!this.canUseExtdir()) {
                     System.out.println("Extension directory feature not available due to the system classpath being able to load: " + TASK_DEFAULT_CLASS);
                     System.out.println("Ignoring extension directory option.");
                     continue;
@@ -217,7 +220,9 @@ public class Main {
     }
 
     public int runTaskClass(List<String> tokens) throws Throwable {
-
+        /**
+         * 打印jvm信息
+         */
         StringBuilder buffer = new StringBuilder();
         buffer.append(System.getProperty("java.vendor"));
         buffer.append(" ");
@@ -249,10 +254,16 @@ public class Main {
         System.out.println("ACTIVEMQ_CONF: " + getActiveMQConfig());
         System.out.println("ACTIVEMQ_DATA: " + getActiveMQDataDir());
 
+        /**
+         * activemq-run在打包时，只包含了org.apache.activemq.console.Main一个class，
+         * 所以再第一次执行时classpath里实际上没有[org.apache.activemq.console.command.ShellCommand]
+         * 所以，这里使用构建的新加载器来加载。新的classpath已包含在extensions和activeMQClassPath中
+         */
         ClassLoader cl = getClassLoader();
         Thread.currentThread().setContextClassLoader(cl);
 
         // Use reflection to run the task.
+        // 执行org.apache.activemq.console.command.ShellCommand.main(java.lang.String[], java.io.InputStream, java.io.PrintStream)
         try {
             String[] args = tokens.toArray(new String[tokens.size()]);
             Class<?> task = cl.loadClass(TASK_DEFAULT_CLASS);
@@ -283,6 +294,7 @@ public class Main {
     }
 
     /**
+     * 如果broker工厂已经在classpath中，扩展目录功能将无法工作，因为我们必须从一个为使其正常工作而专门构建的子类加载器（Child ClassLoader）中加载它。
      * The extension directory feature will not work if the broker factory is
      * already in the classpath since we have to load him from a child
      * ClassLoader we build for it to work correctly.
